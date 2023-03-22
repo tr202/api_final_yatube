@@ -5,6 +5,7 @@ from http import HTTPStatus
 from django.db import IntegrityError
 
 from rest_framework import viewsets
+from rest_framework.mixins import CreateModelMixin, ListModelMixin
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework import permissions
 from rest_framework.response import Response
@@ -17,18 +18,18 @@ from .serializers import (CommentSerializer,
                           GroupSerializer,
                           PostSerializer)
 
+EXTRACT_POST_ID_PATTERN = r'posts\/([0-9]+)'
 
-class BaseViewSet(viewsets.ModelViewSet):
-    permission_classes = (IsOwnerOrReadOnly, permissions.IsAuthenticated)
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user,)
+class BaseViewSet(CreateModelMixin, ListModelMixin, viewsets.GenericViewSet):
+    ...
 
 
 class FollowViewSet(BaseViewSet):
+    permission_classes = (IsOwnerOrReadOnly, permissions.IsAuthenticated)
     serializer_class = FollowSerializer
     filter_backends = (filters.SearchFilter,)
-    search_fields = ('following__username',)
+    search_fields = ('=following__username',)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -36,26 +37,29 @@ class FollowViewSet(BaseViewSet):
         try:
             self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=201, headers=headers)
+            return Response(
+                serializer.data, status=HTTPStatus.CREATED, headers=headers)
         except IntegrityError:
             return Response('Already exists', HTTPStatus.BAD_REQUEST)
 
     def get_queryset(self):
-        r = self.request
-        username = r.GET.get('username')
+        username = self.request.GET.get('username')
         if username:
             return Follow.objects.filter(user__username=username)
         return Follow.objects.filter(
             user=self.request.user).select_related('following', 'user')
 
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user,)
 
-class CommentViewSet(BaseViewSet):
+
+class CommentViewSet(viewsets.ModelViewSet):
     permission_classes = (IsOwnerOrReadOnly,
                           permissions.IsAuthenticatedOrReadOnly)
     serializer_class = CommentSerializer
 
     def get_post_id(self):
-        pattern = r'posts\/([0-9]+)'
+        pattern = EXTRACT_POST_ID_PATTERN
         return re.findall(pattern, self.request.path)[0]
 
     def get_queryset(self):
@@ -66,7 +70,7 @@ class CommentViewSet(BaseViewSet):
         serializer.save(author=self.request.user, post_id=self.get_post_id())
 
 
-class PostViewSet(BaseViewSet):
+class PostViewSet(viewsets.ModelViewSet):
     permission_classes = (IsOwnerOrReadOnly,
                           permissions.IsAuthenticatedOrReadOnly,)
     queryset = Post.objects.all().select_related('author')
@@ -81,3 +85,4 @@ class GroupViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.AllowAny,)
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
+    http_method_names = ('get', 'post',)
