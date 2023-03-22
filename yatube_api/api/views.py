@@ -5,7 +5,9 @@ from http import HTTPStatus
 from django.db import IntegrityError
 
 from rest_framework import viewsets
-from rest_framework.mixins import CreateModelMixin, ListModelMixin
+from rest_framework.mixins import (CreateModelMixin,
+                                   ListModelMixin,
+                                   RetrieveModelMixin)
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework import permissions
 from rest_framework.response import Response
@@ -81,8 +83,8 @@ class PostViewSet(viewsets.ModelViewSet):
         serializer.save(author=self.request.user)
 
 
-class GroupViewSet(viewsets.ReadOnlyModelViewSet):
+class GroupViewSet(BaseViewSet, RetrieveModelMixin):
     permission_classes = (permissions.AllowAny,)
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
-    http_method_names = ('get', 'post',)
+    http_method_names = ('get',)
