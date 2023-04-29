@@ -1,5 +1,5 @@
 # api_final
-api final для приложения yatube
+Учебный проект api final для приложения yatube
 ### Технологии
 Python 3.9
 Django 3.2.16
